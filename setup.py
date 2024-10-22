@@ -10,9 +10,9 @@ setup(
     license='BSD-3-Clause',
     install_requires=[
         # list of packages this package depends on
-        'numpy',
-        'scipy',
-        'matplotlib'
+        'numpy==1.26.4',
+        'scipy==1.14.1',
+        'matplotlib==3.9.2'
     ],
     classifiers=[
         # Trove classifiers
