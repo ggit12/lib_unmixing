@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='lib-unmixing',
+    name='lib_unmixing',
     version='0.1',
     packages=find_packages(),
-    description='lib-unmixing, made into a pip-installable package, forked from https://github.com/etienne-monier/lib-unmixing',
+    description='lib_unmixing, made into a pip-installable package, forked from https://github.com/etienne-monier/lib-unmixing',
     author='ggit12',
     # author_email='your.email@example.com',
     license='BSD-3-Clause',
