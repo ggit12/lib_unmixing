@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='unmixing',
+    name='lib-unmixing',
     version='0.1',
     packages=find_packages(),
     description='lib-unmixing, made into a pip-installable package, forked from https://github.com/etienne-monier/lib-unmixing',
