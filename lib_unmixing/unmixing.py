@@ -655,7 +655,7 @@ def sisal(Y,p,**kwargs):
     ----- Note ----------------------
     
     The identified affine set is given by
-           {z\in R^p : z=Up(:,1:p-1)*a+my, a\in R^(p-1)}
+           {z in R^p : z=Up(:,1:p-1)*a+my, a in R^(p-1)}
     
     
     ----- License -------------------
