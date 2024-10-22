@@ -613,7 +613,7 @@ def sisal(Y,p,**kwargs):
                Default: 80
     
     tau - Regularization parameter in the problem
-             Q^* = arg min_Q  -\log abs(det(Q)) + tau*|| Q*yp ||_h
+             Q^* = arg min_Q  -log abs(det(Q)) + tau*|| Q*yp ||_h
                    subject to np.ones((1,p))*Q=mq
              where mq = ones(1,N)*yp'inv(yp*yp) and ||x||_h is the "hinge"
              induced norm (see [1]).
