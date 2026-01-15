@@ -578,146 +578,448 @@ def soft_neg(y, tau):
     return z
 
 
+# def sisal(Y, p, **kwargs):
+#     """
+#     M,Up,my,sing_values = sisal(Y,p,**kwargs)
+
+#     ----- Description ---------------
+
+#     Simplex identification via split augmented Lagrangian (SISAL) estimates
+#     the vertices  M={m_1,...m_p} of the (p-1)-dimensional simplex of minimum
+#     volume containing the vectors [y_1,...y_N], under the assumption that y_i
+#     belongs to a (p-1)  dimensional affine set.
+
+#     For details see
+
+#     [1] José M. Bioucas-Dias, "A variable splitting augmented lagrangian
+#     approach to linear spectral unmixing", First IEEE GRSS Workshop on
+#     Hyperspectral Image and Signal Processing - WHISPERS, 2009.
+#     http://arxiv.org/abs/0904.4635v1
+
+
+#     ----- Input ---------------------
+
+#     Y - matrix with dimension  L(channels) x N(pixels). Each pixel is a linear
+#         mixture of p endmembers signatures Y = M*x + noise.
+
+#     p - number of independent columns of M. Therefore, M spans a (p-1)-dimensional
+#         affine set. p is the number of endmembers.
+
+#     ----- Optional input ------------
+
+
+#     mm_iters - Maximum number of constrained quadratic programs
+#                Default: 80
+
+#     tau - Regularization parameter in the problem
+#              Q^* = arg min_Q  -log abs(det(Q)) + tau*|| Q*yp ||_h
+#                    subject to np.ones((1,p))*Q=mq
+#              where mq = ones(1,N)*yp'inv(yp*yp) and ||x||_h is the "hinge"
+#              induced norm (see [1]).
+#           Default: 1
+
+#     mu - Augmented Lagrange regularization parameter
+#          Default: 1
+
+#     spherize - {True, False} Applies a spherization step to data such that the spherized
+#                data spans over the same range along any axis.
+#                Default: True
+
+#     tolf - Tolerance for the termination test (relative variation of f(Q))
+#            Default: 1e-2
+
+#     M0 - Initial M, dimension L x p.
+#          Defaults is given by the VCA algorithm.
+
+#     verbose - {0,1,2,3}
+#                     0 - work silently
+#                     1 - display simplex volume
+#                     2 - display figures
+#                     3 - display SISAL information
+#                     4 - display SISAL information and figures
+#               Default: 1
+
+#     ----- Output --------------------
+
+#     M - estimated endmember signature matrix L x p
+
+#     Up - isometric matrix spanning the same subspace as M, imension is L x p
+
+#     my - mean value of Y
+
+#     sing_values - (p-1) eigenvalues of Cy = (y-my)*(y-my)/N. The dynamic range
+#                   of these eigenvalues gives an idea of the  difficulty of the
+#                   underlying problem
+
+#     ----- Note ----------------------
+
+#     The identified affine set is given by
+#            {z in R^p : z=Up(:,1:p-1)*a+my, a in R^(p-1)}
+
+
+#     ----- License -------------------
+#     Author: Etienne Monier (etienne.monier@enseeiht.fr)
+
+#     This code is a translation of a matlab code provided by
+#     Jose Nascimento (zen@isel.pt) and Jose Bioucas Dias (bioucas@lx.it.pt)
+#     available at http://www.lx.it.pt/~bioucas/code.htm under a non-specified Copyright (c)
+#     Translation of last version at 20-April-2018 (Matlab version 2.1 (7-May-2004))
+
+#     """
+
+#     #
+#     # -------------------------------------------------------------------------
+#     #
+#     #
+#     # --------------------------------------------------------------
+#     # test for number of required parametres
+#     # --------------------------------------------------------------
+
+#     # data set size
+#     L, N = Y.shape
+#     if L < p:
+#         raise ValueError("Insufficient number of columns in y")
+
+#     ##
+#     # --------------------------------------------------------------
+#     # Set the defaults for the optional parameters
+#     # --------------------------------------------------------------
+#     # maximum number of quadratic QPs
+
+#     MMiters = 80
+#     spherize = True
+#     # display only volume evolution
+#     verbose = 1
+#     # soft constraint regularization parameter
+#     tau = 1
+#     # Augmented Lagrangian regularization parameter
+#     mu = p * 1000 / N
+#     # no initial simplex
+#     M = 0
+
+#     ##
+#     # --------------------------------------------------------------
+#     # Local variables
+#     # --------------------------------------------------------------
+#     # spherization regularization parameter
+#     lam_sphe = 1e-8
+#     # quadractic regularization parameter for the Hesssian
+#     # Hreg = = mu*I
+#     lam_quad = 1e-6
+#     # minimum number of AL iterations per quadratic problem
+#     AL_iters = 4
+#     # flag
+#     flaged = 0
+
+#     # --------------------------------------------------------------
+#     # Read the optional parameters
+#     # --------------------------------------------------------------
+
+#     for key, value in kwargs.items():
+#         Ukey = key.upper()
+
+#         if Ukey == "MM_ITERS":
+#             MMiters = value
+#         elif Ukey == "SPHERIZE":
+#             spherize = value
+#         elif Ukey == "MU":
+#             mu = value
+#         elif Ukey == "TAU":
+#             tau = value
+#         elif Ukey == "M0":
+#             M = value
+#         elif Ukey == "VERBOSE":
+#             verbose = value
+#         else:
+#             # Hmmm, something wrong with the parameter string
+#             raise ValueError(f"Unrecognized option: {key}")
+
+#     ##
+#     # --------------------------------------------------------------
+#     # set display mode
+#     # --------------------------------------------------------------
+#     if (verbose == 3) or (verbose == 4):
+#         warnings.filterwarnings("ignore")
+#     else:
+#         warnings.filterwarnings("always")
+
+#     ##
+#     # --------------------------------------------------------------
+#     # identify the affine space that best represent the data set y
+#     # --------------------------------------------------------------
+#     my = np.mean(Y, axis=1)
+#     My = np.repeat(my[:, np.newaxis], N, axis=1)
+#     Myp = np.repeat(my[:, np.newaxis], p, axis=1)
+
+#     Y = Y - My
+#     Up, d, _ = lin.svd(Y @ Y.T / N)
+#     sort_ind = np.argsort(d)[::-1]
+#     Up = Up[:, sort_ind[: p - 1]]
+#     d = d[sort_ind[: p - 1]]
+
+#     # represent y in the subspace R^(p-1)
+#     Y = Up @ Up.T @ Y
+#     # lift y
+#     Y = Y + My
+#     # compute the orthogonal component of my
+#     my_ortho = my - Up @ Up.T.dot(my)
+#     # define another orthonormal direction
+#     Up = np.concatenate(
+#         (Up, (my_ortho / np.sqrt(np.sum(my_ortho**2)))[:, np.newaxis]), axis=1
+#     )
+#     sing_values = d
+
+#     # get coordinates in R^p
+#     Y = Up.T @ Y
+
+#     ##
+#     # ------------------------------------------
+#     # spherize if requested
+#     # ------------------------------------------
+#     if spherize:
+#         Y = Up @ Y
+#         Y = Y - My
+#         C = np.diag(1 / np.sqrt(d + lam_sphe))
+#         IC = lin.inv(C)
+#         Y = C.dot(np.transpose(Up[:, : p - 1])).dot(Y)
+#         # lift
+#         Y = np.concatenate((Y, np.ones((1, N))), axis=0)
+#         # Y[p-1,:] = 1
+#         # normalize to unit norm
+#         Y = Y / np.sqrt(p)
+
+#     ##
+#     # ---------------------------------------------
+#     #            Initialization
+#     # ---------------------------------------------
+#     if M == 0:
+#         # Initialize with VCA
+#         Mvca, _, _ = vca(Y, p, verbose=False)
+#         M = Mvca
+#         # expand Q
+#         Ym = np.mean(M, axis=1)
+#         Ym = np.repeat(Ym[:, np.newaxis], p, axis=1)
+#         dQ = M - Ym
+#         # fraction: multiply by p is to make sure Q0 starts with a feasible
+#         # initial value.
+#         M = M + p * dQ
+#     else:
+#         # Ensure that M is in the affine set defined by the data
+#         M = M - Myp
+#         M = Up[:, : p - 1] @ Up[:, : p - 1].T @ M
+#         M = M + Myp
+#         M = Up.T @ M  # represent in the data subspace
+#         # is sherization is set
+#         if spherize:
+#             M = Up @ M - Myp
+#             M = C @ Up[:, : p - 1].T @ M
+#             # lift
+#             M[p - 1, :] = 1
+#             # normalize to unit norm
+#             M = M / np.sqrt(p)
+
+#     Q0 = lin.inv(M)
+#     Q = Q0
+
+#     # plot  initial matrix M
+#     if verbose == 2 or verbose == 4:
+
+#         M = lin.inv(Q)
+#         _, ax = plt.subplots()
+
+#         _ = ax.plot(Y[0, :], Y[1, :], ".")
+#         line2 = ax.plot(M[0, :], M[1, :], "ok")
+
+#         ax.set_title("SISAL: Endmember Evolution")
+
+#     #
+#     # ---------------------------------------------
+#     #            Build constant matrices
+#     # ---------------------------------------------
+
+#     AAT = np.kron(Y @ Y.T, np.eye(p))  # size p^2xp^2
+#     B = np.kron(np.eye(p), np.ones((1, p)))  # size pxp^2
+#     qm = np.sum(lin.inv(Y @ Y.T) @ Y, axis=1)
+
+#     H = lam_quad * np.eye(p**2)
+#     F = H + mu * AAT  # equation (11) of [1]
+#     IF = lin.inv(F)
+
+#     # auxiliar constant matrices
+#     G = IF @ B.T @ lin.inv(B @ IF @ B.T)
+#     qm_aux = G.dot(qm)
+#     G = IF - G @ B @ IF
+
+#     ##
+#     # ---------------------------------------------------------------
+#     #          Main body- sequence of quadratic-hinge subproblems
+#     # ----------------------------------------------------------------
+
+#     # initializations
+#     Z = Q @ Y
+#     Bk = 0 * Z
+
+#     hinge = lambda x: np.maximum(-x, 0)
+
+#     for k in range(MMiters):
+
+#         IQ = lin.inv(Q)
+#         g = -IQ.T
+#         g = g.flatten(order="C")
+
+#         baux = H @ Q.flatten(order="C") - g
+
+#         q0 = Q.flatten(order="C")
+#         Q0 = Q
+
+#         # display the simplex volume
+#         if verbose == 1:
+#             if spherize:
+#                 # unscale
+#                 M = IQ * np.sqrt(p)
+#                 # remove offset
+#                 M = M[: p - 1, :]
+#                 # unspherize
+#                 M = Up[:, : p - 1].dot(IC).dot(M)
+#                 # sum ym
+#                 M = M + Myp
+#                 M = Up.T.dot(M)
+#             else:
+#                 M = IQ
+
+#             print(
+#                 "\n iter = {0}, simplex volume = {1:.4e}  \n".format(
+#                     k, 1 / np.abs(lin.det(M))
+#                 )
+#             )
+
+#         if k == MMiters:
+#             AL_iters = 100
+
+#         while 1:
+#             q = Q.flatten(order="C")
+#             # initial function values (true and quadratic)
+#             f0_val = -np.log(np.abs(lin.det(Q))) + tau * np.sum(hinge(Q @ Y))
+#             f0_quad = (
+#                 (q - q0).T.dot(g)
+#                 + 0.5 * (q - q0).T.dot(H).dot(q - q0)
+#                 + tau * np.sum(hinge(Q.dot(Y)))
+#             )
+#             for i in range(AL_iters - 1):
+#                 # -------------------------------------------
+#                 # solve quadratic problem with constraints
+#                 # -------------------------------------------
+#                 dq_aux = Z + Bk  # matrix form
+#                 dtz_b = dq_aux @ Y.T
+#                 dtz_b = dtz_b.flatten(order="C")
+#                 b = baux + mu * dtz_b  # (11) of [1]
+#                 q = G.dot(b) + qm_aux  # (10) of [1]
+#                 Q = np.reshape(q, (p, p), order="C")
+
+#                 # -------------------------------------------
+#                 # solve hinge
+#                 # -------------------------------------------
+#                 Z = soft_neg(Q @ Y - Bk, tau / mu)
+
+#                 # -------------------------------------------
+#                 # update Bk
+#                 # -------------------------------------------
+
+#                 Bk = Bk - (Q @ Y - Z)
+#                 if verbose == 3 or verbose == 4:
+#                     print(f"\n ||Q*Y-Z|| = {lin.norm(Q.dot(Y) - Z):.4f}")
+
+#                 if verbose == 2 or verbose == 4:
+#                     M = lin.inv(Q)
+#                     line2.set_xdata(M[0, :])
+#                     line2.set_ydata(M[1, :])
+#                     plt.draw()
+#                     if ~flaged:
+#                         _ = ax.plot(M[0, :], M[1, :], ".r")
+#                         plt.legend("data points", "M(0)", "M(k)")
+#                         flaged = 1
+
+#             f_quad = (
+#                 (q - q0).T.dot(g)
+#                 + 0.5 * (q - q0).T.dot(H).dot(q - q0)
+#                 + tau * np.sum(hinge(Q @ Y))
+#             )
+#             if verbose == 3 or verbose == 4:
+#                 print(
+#                     f"\n MMiter = {k}, AL_iter, = {i}, \
+#                         f0 = {f0_quad:2.4f}, f_quad = {f_quad:2.4f},  \n"
+#                 )
+
+#             f_val = -np.log(np.abs(lin.det(Q))) + tau * np.sum(hinge(Q.dot(Y)))
+#             if f0_quad >= f_quad:  # quadratic energy decreased
+#                 try:
+#                     while f0_val < f_val:
+#                         if verbose == 3 or verbose == 4:
+#                             print(
+#                                 f"\n line search, MMiter = {k}, AL_iter, = {i}, \
+#                                     f0 = {f0_val:2.4f}, f_val = {f_val:2.4f},  \n"
+#                             )
+
+#                         # do line search
+#                         Q = (Q + Q0) / 2
+#                         f_val = -np.log(np.abs(lin.det(Q))) + tau * sum(hinge(Q @ Y))
+#                     break
+#                 except Exception: # pylint: disable=broad-except
+#                     pass
+
+#     if verbose == 2 or verbose == 4:
+
+#         ax.legend("data points", "M(0)", "M(final)")
+
+#     #        p_H(4) = plot(M(1,:), M(2,:),'*g');
+#     #        leg_cell{end+1} = ;
+#     #        legend(p_H', leg_cell);
+#     #    end
+
+#     if spherize:
+#         M = lin.inv(Q)
+#         # refer to the initial affine set
+#         # unscale
+#         M = M * np.sqrt(p)
+#         # remove offset
+#         M = M[: p - 1, :]
+#         # unspherize
+#         M = Up[:, : p - 1].dot(IC).dot(M)
+#         # sum ym
+#         M = M + Myp
+#     else:
+#         M = Up.dot(lin.inv(Q))
+
+#     return (M, Up, my, sing_values)
+
+
+#####################################################################################
+
 def sisal(Y, p, **kwargs):
     """
     M,Up,my,sing_values = sisal(Y,p,**kwargs)
-
-    ----- Description ---------------
-
-    Simplex identification via split augmented Lagrangian (SISAL) estimates
-    the vertices  M={m_1,...m_p} of the (p-1)-dimensional simplex of minimum
-    volume containing the vectors [y_1,...y_N], under the assumption that y_i
-    belongs to a (p-1)  dimensional affine set.
-
-    For details see
-
-    [1] José M. Bioucas-Dias, "A variable splitting augmented lagrangian
-    approach to linear spectral unmixing", First IEEE GRSS Workshop on
-    Hyperspectral Image and Signal Processing - WHISPERS, 2009.
-    http://arxiv.org/abs/0904.4635v1
-
-
-    ----- Input ---------------------
-
-    Y - matrix with dimension  L(channels) x N(pixels). Each pixel is a linear
-        mixture of p endmembers signatures Y = M*x + noise.
-
-    p - number of independent columns of M. Therefore, M spans a (p-1)-dimensional
-        affine set. p is the number of endmembers.
-
-    ----- Optional input ------------
-
-
-    mm_iters - Maximum number of constrained quadratic programs
-               Default: 80
-
-    tau - Regularization parameter in the problem
-             Q^* = arg min_Q  -log abs(det(Q)) + tau*|| Q*yp ||_h
-                   subject to np.ones((1,p))*Q=mq
-             where mq = ones(1,N)*yp'inv(yp*yp) and ||x||_h is the "hinge"
-             induced norm (see [1]).
-          Default: 1
-
-    mu - Augmented Lagrange regularization parameter
-         Default: 1
-
-    spherize - {True, False} Applies a spherization step to data such that the spherized
-               data spans over the same range along any axis.
-               Default: True
-
-    tolf - Tolerance for the termination test (relative variation of f(Q))
-           Default: 1e-2
-
-    M0 - Initial M, dimension L x p.
-         Defaults is given by the VCA algorithm.
-
-    verbose - {0,1,2,3}
-                    0 - work silently
-                    1 - display simplex volume
-                    2 - display figures
-                    3 - display SISAL information
-                    4 - display SISAL information and figures
-              Default: 1
-
-    ----- Output --------------------
-
-    M - estimated endmember signature matrix L x p
-
-    Up - isometric matrix spanning the same subspace as M, imension is L x p
-
-    my - mean value of Y
-
-    sing_values - (p-1) eigenvalues of Cy = (y-my)*(y-my)/N. The dynamic range
-                  of these eigenvalues gives an idea of the  difficulty of the
-                  underlying problem
-
-    ----- Note ----------------------
-
-    The identified affine set is given by
-           {z in R^p : z=Up(:,1:p-1)*a+my, a in R^(p-1)}
-
-
-    ----- License -------------------
-    Author: Etienne Monier (etienne.monier@enseeiht.fr)
-
-    This code is a translation of a matlab code provided by
-    Jose Nascimento (zen@isel.pt) and Jose Bioucas Dias (bioucas@lx.it.pt)
-    available at http://www.lx.it.pt/~bioucas/code.htm under a non-specified Copyright (c)
-    Translation of last version at 20-April-2018 (Matlab version 2.1 (7-May-2004))
-
+    
+    Refactored to improve runtime. 
     """
 
-    #
-    # -------------------------------------------------------------------------
-    #
-    #
-    # --------------------------------------------------------------
-    # test for number of required parametres
-    # --------------------------------------------------------------
-
-    # data set size
     L, N = Y.shape
     if L < p:
         raise ValueError("Insufficient number of columns in y")
 
-    ##
-    # --------------------------------------------------------------
-    # Set the defaults for the optional parameters
-    # --------------------------------------------------------------
-    # maximum number of quadratic QPs
-
     MMiters = 80
     spherize = True
-    # display only volume evolution
     verbose = 1
-    # soft constraint regularization parameter
     tau = 1
-    # Augmented Lagrangian regularization parameter
     mu = p * 1000 / N
-    # no initial simplex
     M = 0
 
-    ##
-    # --------------------------------------------------------------
-    # Local variables
-    # --------------------------------------------------------------
-    # spherization regularization parameter
     lam_sphe = 1e-8
-    # quadractic regularization parameter for the Hesssian
-    # Hreg = = mu*I
     lam_quad = 1e-6
-    # minimum number of AL iterations per quadratic problem
     AL_iters = 4
-    # flag
     flaged = 0
-
-    # --------------------------------------------------------------
-    # Read the optional parameters
-    # --------------------------------------------------------------
 
     for key, value in kwargs.items():
         Ukey = key.upper()
-
         if Ukey == "MM_ITERS":
             MMiters = value
         elif Ukey == "SPHERIZE":
@@ -731,22 +1033,13 @@ def sisal(Y, p, **kwargs):
         elif Ukey == "VERBOSE":
             verbose = value
         else:
-            # Hmmm, something wrong with the parameter string
             raise ValueError(f"Unrecognized option: {key}")
 
-    ##
-    # --------------------------------------------------------------
-    # set display mode
-    # --------------------------------------------------------------
     if (verbose == 3) or (verbose == 4):
         warnings.filterwarnings("ignore")
     else:
         warnings.filterwarnings("always")
 
-    ##
-    # --------------------------------------------------------------
-    # identify the affine space that best represent the data set y
-    # --------------------------------------------------------------
     my = np.mean(Y, axis=1)
     My = np.repeat(my[:, np.newaxis], N, axis=1)
     Myp = np.repeat(my[:, np.newaxis], p, axis=1)
@@ -757,240 +1050,204 @@ def sisal(Y, p, **kwargs):
     Up = Up[:, sort_ind[: p - 1]]
     d = d[sort_ind[: p - 1]]
 
-    # represent y in the subspace R^(p-1)
     Y = Up @ Up.T @ Y
-    # lift y
     Y = Y + My
-    # compute the orthogonal component of my
     my_ortho = my - Up @ Up.T.dot(my)
-    # define another orthonormal direction
     Up = np.concatenate(
         (Up, (my_ortho / np.sqrt(np.sum(my_ortho**2)))[:, np.newaxis]), axis=1
     )
     sing_values = d
 
-    # get coordinates in R^p
     Y = Up.T @ Y
 
-    ##
-    # ------------------------------------------
-    # spherize if requested
-    # ------------------------------------------
     if spherize:
         Y = Up @ Y
         Y = Y - My
         C = np.diag(1 / np.sqrt(d + lam_sphe))
         IC = lin.inv(C)
         Y = C.dot(np.transpose(Up[:, : p - 1])).dot(Y)
-        # lift
         Y = np.concatenate((Y, np.ones((1, N))), axis=0)
-        # Y[p-1,:] = 1
-        # normalize to unit norm
         Y = Y / np.sqrt(p)
 
-    ##
-    # ---------------------------------------------
-    #            Initialization
-    # ---------------------------------------------
     if M == 0:
-        # Initialize with VCA
         Mvca, _, _ = vca(Y, p, verbose=False)
         M = Mvca
-        # expand Q
         Ym = np.mean(M, axis=1)
         Ym = np.repeat(Ym[:, np.newaxis], p, axis=1)
         dQ = M - Ym
-        # fraction: multiply by p is to make sure Q0 starts with a feasible
-        # initial value.
         M = M + p * dQ
     else:
-        # Ensure that M is in the affine set defined by the data
         M = M - Myp
         M = Up[:, : p - 1] @ Up[:, : p - 1].T @ M
         M = M + Myp
-        M = Up.T @ M  # represent in the data subspace
-        # is sherization is set
+        M = Up.T @ M
         if spherize:
             M = Up @ M - Myp
             M = C @ Up[:, : p - 1].T @ M
-            # lift
             M[p - 1, :] = 1
-            # normalize to unit norm
             M = M / np.sqrt(p)
 
-    Q0 = lin.inv(M)
-    Q = Q0
+    Q = lin.inv(M)
 
-    # plot  initial matrix M
     if verbose == 2 or verbose == 4:
-
-        M = lin.inv(Q)
+        M_plot = lin.inv(Q)
         _, ax = plt.subplots()
-
         _ = ax.plot(Y[0, :], Y[1, :], ".")
-        line2 = ax.plot(M[0, :], M[1, :], "ok")
-
+        line2 = ax.plot(M_plot[0, :], M_plot[1, :], "ok")
         ax.set_title("SISAL: Endmember Evolution")
 
-    #
-    # ---------------------------------------------
-    #            Build constant matrices
-    # ---------------------------------------------
+    # =========================
+    # CHANGED: no p^2 x p^2 Kronecker matrices
+    # Use identity: (YY^T ⊗ I) vec(X) = vec(X (YY^T))
+    # So (lam_quad I + mu(YY^T ⊗ I))^{-1} is column-wise scaling in eigenbasis of YY^T
+    # =========================
+    YYT = Y @ Y.T  # p x p (after lifting/spherize, Y is p x N)
+    evals, Ue = lin.eigh(YYT)  # symmetric
+    denom = lam_quad + mu * evals
+    ones_p = np.ones(p)
 
-    AAT = np.kron(Y @ Y.T, np.eye(p))  # size p^2xp^2
-    B = np.kron(np.eye(p), np.ones((1, p)))  # size pxp^2
-    qm = np.sum(lin.inv(Y @ Y.T) @ Y, axis=1)
+    def Finv(V):
+        # solves lam_quad*X + mu*X*YYT = V for X
+        # via YYT = Ue diag(evals) Ue^T => X = (V Ue / denom) Ue^T
+        VU = V @ Ue
+        XU = VU / denom[np.newaxis, :]
+        return XU @ Ue.T
 
-    H = lam_quad * np.eye(p**2)
-    F = H + mu * AAT  # equation (11) of [1]
-    IF = lin.inv(F)
+    # qm = sum(inv(YYT) @ Y, axis=1) without forming inv
+    qm = np.sum(lin.solve(YYT, Y), axis=1)
 
-    # auxiliar constant matrices
-    G = IF @ B.T @ lin.inv(B @ IF @ B.T)
-    qm_aux = G.dot(qm)
-    G = IF - G @ B @ IF
+    # Build Schur matrix S = B F^{-1} B^T where (B vec(X)) = row_sums(X)
+    # Column i corresponds to applying B^T e_i => V has row i all ones.
+    Sschur = np.empty((p, p))
+    for i in range(p):
+        V = np.zeros((p, p))
+        V[i, :] = 1.0
+        Xi = Finv(V)
+        Sschur[:, i] = Xi @ ones_p
+    Sinv = lin.inv(Sschur)
 
-    ##
-    # ---------------------------------------------------------------
-    #          Main body- sequence of quadratic-hinge subproblems
-    # ----------------------------------------------------------------
+    def solve_constrained_q(bvec):
+        # Solve KKT: [F B^T; B 0] [q;lam] = [b; qm]
+        # using Schur complement without forming F
+        V = np.reshape(bvec, (p, p), order="C")
+        Xb = Finv(V)
+        rhs = (Xb @ ones_p) - qm
+        lam = Sinv @ rhs
+        V2 = V - lam[:, np.newaxis]  # subtract diag(lam) @ ones_row
+        X = Finv(V2)
+        return X
 
-    # initializations
     Z = Q @ Y
     Bk = 0 * Z
-
     hinge = lambda x: np.maximum(-x, 0)
 
     for k in range(MMiters):
 
-        IQ = lin.inv(Q)
-        g = -IQ.T
-        g = g.flatten(order="C")
+        # CHANGED: avoid explicit inv(Q) for gradient; inv(Q).T = inv(Q.T)
+        IQT = lin.solve(Q.T, np.eye(p))
+        g = -IQT.flatten(order="C")
 
-        baux = H @ Q.flatten(order="C") - g
+        q_vec = Q.flatten(order="C")
+        baux = lam_quad * q_vec - g  # H@q is lam_quad*q
 
-        q0 = Q.flatten(order="C")
         Q0 = Q
 
-        # display the simplex volume
         if verbose == 1:
             if spherize:
-                # unscale
-                M = IQ * np.sqrt(p)
-                # remove offset
-                M = M[: p - 1, :]
-                # unspherize
-                M = Up[:, : p - 1].dot(IC).dot(M)
-                # sum ym
-                M = M + Myp
-                M = Up.T.dot(M)
+                M_un = lin.solve(Q, np.eye(p)) * np.sqrt(p)
+                M_un = M_un[: p - 1, :]
+                M_un = Up[:, : p - 1].dot(IC).dot(M_un)
+                M_un = M_un + Myp
+                M_un = Up.T.dot(M_un)
             else:
-                M = IQ
+                M_un = lin.solve(Q, np.eye(p))
 
             print(
                 "\n iter = {0}, simplex volume = {1:.4e}  \n".format(
-                    k, 1 / np.abs(lin.det(M))
+                    k, 1 / np.abs(lin.det(M_un))
                 )
             )
 
-        if k == MMiters:
+        # CHANGED: bugfix (old code used k == MMiters, never true)
+        if k == MMiters - 1:
             AL_iters = 100
 
-        while 1:
+        # CHANGED: cap retries to avoid infinite while-loop
+        for _retry in range(20):
+
+            QY = Q @ Y
+            hQY = hinge(QY)
+            sign, logabsdet = lin.slogdet(Q)
+            f0_val = -logabsdet + tau * np.sum(hQY)
+
             q = Q.flatten(order="C")
-            # initial function values (true and quadratic)
-            f0_val = -np.log(np.abs(lin.det(Q))) + tau * np.sum(hinge(Q @ Y))
-            f0_quad = (
-                (q - q0).T.dot(g)
-                + 0.5 * (q - q0).T.dot(H).dot(q - q0)
-                + tau * np.sum(hinge(Q.dot(Y)))
-            )
+            f0_quad = (q - q_vec).T.dot(g) + 0.5 * lam_quad * lin.norm(q - q_vec) ** 2 + tau * np.sum(hQY)
+
             for i in range(AL_iters - 1):
-                # -------------------------------------------
-                # solve quadratic problem with constraints
-                # -------------------------------------------
-                dq_aux = Z + Bk  # matrix form
-                dtz_b = dq_aux @ Y.T
-                dtz_b = dtz_b.flatten(order="C")
-                b = baux + mu * dtz_b  # (11) of [1]
-                q = G.dot(b) + qm_aux  # (10) of [1]
-                Q = np.reshape(q, (p, p), order="C")
 
-                # -------------------------------------------
-                # solve hinge
-                # -------------------------------------------
-                Z = soft_neg(Q @ Y - Bk, tau / mu)
+                dq_aux = Z + Bk
+                dtz_b = (dq_aux @ Y.T).flatten(order="C")
+                b = baux + mu * dtz_b
 
-                # -------------------------------------------
-                # update Bk
-                # -------------------------------------------
+                # CHANGED: replace q = G b + qm_aux with implicit constrained solve
+                Q = solve_constrained_q(b)
+                q = Q.flatten(order="C")
 
-                Bk = Bk - (Q @ Y - Z)
+                QY = Q @ Y
+                Z = soft_neg(QY - Bk, tau / mu)
+                Bk = Bk - (QY - Z)
+
                 if verbose == 3 or verbose == 4:
-                    print(f"\n ||Q*Y-Z|| = {lin.norm(Q.dot(Y) - Z):.4f}")
+                    print(f"\n ||Q*Y-Z|| = {lin.norm(QY - Z):.4f}")
 
                 if verbose == 2 or verbose == 4:
-                    M = lin.inv(Q)
-                    line2.set_xdata(M[0, :])
-                    line2.set_ydata(M[1, :])
+                    M_plot = lin.solve(Q, np.eye(p))
+                    line2.set_xdata(M_plot[0, :])
+                    line2.set_ydata(M_plot[1, :])
                     plt.draw()
                     if ~flaged:
-                        _ = ax.plot(M[0, :], M[1, :], ".r")
+                        _ = ax.plot(M_plot[0, :], M_plot[1, :], ".r")
                         plt.legend("data points", "M(0)", "M(k)")
                         flaged = 1
 
-            f_quad = (
-                (q - q0).T.dot(g)
-                + 0.5 * (q - q0).T.dot(H).dot(q - q0)
-                + tau * np.sum(hinge(Q @ Y))
-            )
+            QY = Q @ Y
+            hQY = hinge(QY)
+            sign, logabsdet = lin.slogdet(Q)
+
+            f_quad = (q - q_vec).T.dot(g) + 0.5 * lam_quad * lin.norm(q - q_vec) ** 2 + tau * np.sum(hQY)
+
             if verbose == 3 or verbose == 4:
                 print(
-                    f"\n MMiter = {k}, AL_iter, = {i}, \
-                        f0 = {f0_quad:2.4f}, f_quad = {f_quad:2.4f},  \n"
+                    f"\n MMiter = {k}, AL_iter, = {i}, "
+                    f"f0 = {f0_quad:2.4f}, f_quad = {f_quad:2.4f},  \n"
                 )
 
-            f_val = -np.log(np.abs(lin.det(Q))) + tau * np.sum(hinge(Q.dot(Y)))
-            if f0_quad >= f_quad:  # quadratic energy decreased
-                try:
-                    while f0_val < f_val:
-                        if verbose == 3 or verbose == 4:
-                            print(
-                                f"\n line search, MMiter = {k}, AL_iter, = {i}, \
-                                    f0 = {f0_val:2.4f}, f_val = {f_val:2.4f},  \n"
-                            )
+            f_val = -logabsdet + tau * np.sum(hQY)
 
-                        # do line search
-                        Q = (Q + Q0) / 2
-                        f_val = -np.log(np.abs(lin.det(Q))) + tau * sum(hinge(Q @ Y))
-                    break
-                except Exception: # pylint: disable=broad-except
-                    pass
+            if f0_quad >= f_quad:
+                while f0_val < f_val:
+                    if verbose == 3 or verbose == 4:
+                        print(
+                            f"\n line search, MMiter = {k}, AL_iter, = {i}, "
+                            f"f0 = {f0_val:2.4f}, f_val = {f_val:2.4f},  \n"
+                        )
+                    Q = (Q + Q0) / 2
+                    QY = Q @ Y
+                    sign, logabsdet = lin.slogdet(Q)
+                    f_val = -logabsdet + tau * np.sum(hinge(QY))
+                break
 
     if verbose == 2 or verbose == 4:
-
         ax.legend("data points", "M(0)", "M(final)")
 
-    #        p_H(4) = plot(M(1,:), M(2,:),'*g');
-    #        leg_cell{end+1} = ;
-    #        legend(p_H', leg_cell);
-    #    end
-
     if spherize:
-        M = lin.inv(Q)
-        # refer to the initial affine set
-        # unscale
+        M = lin.solve(Q, np.eye(p))
         M = M * np.sqrt(p)
-        # remove offset
         M = M[: p - 1, :]
-        # unspherize
         M = Up[:, : p - 1].dot(IC).dot(M)
-        # sum ym
         M = M + Myp
     else:
-        M = Up.dot(lin.inv(Q))
+        M = Up.dot(lin.solve(Q, np.eye(p)))
 
     return (M, Up, my, sing_values)
 
-
-#####################################################################################
